@@ -7,6 +7,21 @@ const electron_1 = require("electron");
 const fs_1 = __importDefault(require("fs"));
 const http_1 = __importDefault(require("http"));
 const path_1 = __importDefault(require("path"));
+const mammoth_1 = __importDefault(require("mammoth"));
+const SKIP_DIRS = new Set(["node_modules", ".git", ".next", "__pycache__", ".venv", "venv"]);
+function getDirectChildren(dirPath) {
+    const items = fs_1.default.readdirSync(dirPath);
+    return items
+        .filter((item) => !SKIP_DIRS.has(item))
+        .map((item) => {
+        const fullPath = path_1.default.join(dirPath, item);
+        const stats = fs_1.default.lstatSync(fullPath);
+        if (stats.isDirectory()) {
+            return { name: item, path: fullPath, type: "folder" };
+        }
+        return { name: item, path: fullPath, type: "file" };
+    });
+}
 let mainWindow = null;
 const DEV_URL = "http://localhost:3000";
 const waitForDevServer = () => {
@@ -26,7 +41,62 @@ const createWindow = () => {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
+            preload: path_1.default.join(__dirname, "preload.js"),
         },
+    });
+    electron_1.ipcMain.handle("open-folder", async (_, defaultPath) => {
+        const result = await electron_1.dialog.showOpenDialog(mainWindow, {
+            defaultPath: defaultPath || undefined,
+            properties: ["openDirectory"],
+        });
+        if (result.canceled)
+            return null;
+        const folderPath = result.filePaths[0];
+        const tree = getDirectChildren(folderPath);
+        return { folderPath, tree };
+    });
+    electron_1.ipcMain.handle("get-folder-children", async (_, dirPath) => {
+        return getDirectChildren(dirPath);
+    });
+    const BINARY_EXTENSIONS = {
+        pdf: "application/pdf",
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        gif: "image/gif",
+        webp: "image/webp",
+        bmp: "image/bmp",
+        ico: "image/x-icon",
+        svg: "image/svg+xml",
+        tiff: "image/tiff",
+        tif: "image/tiff",
+    };
+    const MAX_BINARY_SIZE = 50 * 1024 * 1024; // 50MB
+    const DOCX_EXTENSIONS = new Set(["docx", "doc"]);
+    electron_1.ipcMain.handle("read-file", async (_, filePath) => {
+        const ext = path_1.default.extname(filePath).toLowerCase().slice(1);
+        if (DOCX_EXTENSIONS.has(ext)) {
+            const stats = fs_1.default.statSync(filePath);
+            if (stats.size > MAX_BINARY_SIZE) {
+                throw new Error("File too large to display");
+            }
+            const buffer = fs_1.default.readFileSync(filePath);
+            const result = await mammoth_1.default.extractRawText({ buffer });
+            return { type: "text", content: result.value };
+        }
+        const mimeType = BINARY_EXTENSIONS[ext];
+        if (mimeType) {
+            const stats = fs_1.default.statSync(filePath);
+            if (stats.size > MAX_BINARY_SIZE) {
+                throw new Error("File too large to display");
+            }
+            const buffer = fs_1.default.readFileSync(filePath);
+            return { type: "binary", mimeType, data: buffer.toString("base64") };
+        }
+        return {
+            type: "text",
+            content: fs_1.default.readFileSync(filePath, "utf8"),
+        };
     });
     const isDev = process.env.ELECTRON_DEV === "1" || process.env.NODE_ENV === "development";
     const outPath = path_1.default.join(__dirname, "../out/index.html");
@@ -47,3 +117,4 @@ electron_1.app.on("window-all-closed", () => {
         electron_1.app.quit();
     }
 });
+//# sourceMappingURL=main.js.map
