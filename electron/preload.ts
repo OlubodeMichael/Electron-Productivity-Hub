@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld("api", {
   readFile: (filePath: string) => ipcRenderer.invoke("read-file", filePath),
   runCommand: (cmd: string, cwd: string) => ipcRenderer.invoke("run-command", cmd, cwd),
   getHomeDir: () => ipcRenderer.invoke("get-homedir"),
+  resolvePath: (cwd: string, segment: string) => ipcRenderer.invoke("resolve-path", cwd, segment),
 })
 console.log("Preload is running")

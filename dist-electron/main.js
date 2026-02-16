@@ -42,8 +42,8 @@ const createWindow = () => {
     const ses = electron_1.session.defaultSession;
     ses.webRequest.onHeadersReceived((details, callback) => {
         const csp = isDev
-            ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' data: blob:; connect-src 'self' ws: wss: http://localhost:* https://localhost:*; font-src 'self'; base-uri 'self'"
-            : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'self'";
+            ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; frame-src 'self' data: blob:; connect-src 'self' ws: wss: http://localhost:* https://localhost:*; font-src 'self'; base-uri 'self'"
+            : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; frame-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'self'";
         callback({
             responseHeaders: {
                 ...details.responseHeaders,
@@ -75,6 +75,25 @@ const createWindow = () => {
         return getDirectChildren(dirPath);
     });
     electron_1.ipcMain.handle("get-homedir", () => os_1.default.homedir());
+    electron_1.ipcMain.handle("resolve-path", (_, cwd, segment) => {
+        const base = cwd === "~" ? os_1.default.homedir() : cwd;
+        const seg = segment.trim();
+        if (seg === "" || seg === "~")
+            return os_1.default.homedir();
+        const expanded = seg.startsWith("~")
+            ? path_1.default.join(os_1.default.homedir(), seg.slice(1).replace(/^\//, "") || ".")
+            : seg;
+        const resolved = path_1.default.isAbsolute(expanded)
+            ? path_1.default.normalize(expanded)
+            : path_1.default.resolve(base, expanded);
+        if (!fs_1.default.existsSync(resolved)) {
+            throw new Error(`No such file or directory: ${segment || "~"}`);
+        }
+        if (!fs_1.default.statSync(resolved).isDirectory()) {
+            throw new Error(`Not a directory: ${segment || "~"}`);
+        }
+        return resolved;
+    });
     electron_1.ipcMain.handle("run-command", async (_, cmd, cwd) => {
         const workDir = cwd === "~" ? os_1.default.homedir() : cwd;
         return new Promise((resolve, reject) => {
@@ -99,6 +118,12 @@ const createWindow = () => {
         svg: "image/svg+xml",
         tiff: "image/tiff",
         tif: "image/tiff",
+        // video
+        mp4: "video/mp4",
+        webm: "video/webm",
+        ogg: "video/ogg",
+        mov: "video/quicktime",
+        m4v: "video/x-m4v",
     };
     const MAX_BINARY_SIZE = 50 * 1024 * 1024; // 50MB
     const DOCX_EXTENSIONS = new Set(["docx", "doc"]);

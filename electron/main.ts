@@ -88,6 +88,25 @@ const createWindow = () => {
 
   ipcMain.handle("get-homedir", () => os.homedir())
 
+  ipcMain.handle("resolve-path", (_, cwd: string, segment: string) => {
+    const base = cwd === "~" ? os.homedir() : cwd
+    const seg = segment.trim()
+    if (seg === "" || seg === "~") return os.homedir()
+    const expanded = seg.startsWith("~")
+      ? path.join(os.homedir(), seg.slice(1).replace(/^\//, "") || ".")
+      : seg
+    const resolved = path.isAbsolute(expanded)
+      ? path.normalize(expanded)
+      : path.resolve(base, expanded)
+    if (!fs.existsSync(resolved)) {
+      throw new Error(`No such file or directory: ${segment || "~"}`)
+    }
+    if (!fs.statSync(resolved).isDirectory()) {
+      throw new Error(`Not a directory: ${segment || "~"}`)
+    }
+    return resolved
+  })
+
   ipcMain.handle("run-command", async (_, cmd: string, cwd: string) => {
     const workDir = cwd === "~" ? os.homedir() : cwd
     return new Promise((resolve, reject) => {

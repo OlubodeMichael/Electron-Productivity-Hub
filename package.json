@@ -12,11 +12,14 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@remotion/cli": "4.0.422",
     "lucide-react": "^0.563.0",
     "mammoth": "^1.11.0",
     "next": "16.1.6",
+    "pdfjs-dist": "^5.4.624",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "remotion": "4.0.422"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

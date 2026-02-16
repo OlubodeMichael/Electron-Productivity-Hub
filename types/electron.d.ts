@@ -17,6 +17,7 @@ declare global {
       >
       runCommand: (cmd: string, cwd: string) => Promise<string>
       getHomeDir: () => Promise<string>
+      resolvePath: (cwd: string, segment: string) => Promise<string>
     }
   }
   interface TreeNode {

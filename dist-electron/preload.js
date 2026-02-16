@@ -7,6 +7,7 @@ electron_1.contextBridge.exposeInMainWorld("api", {
     readFile: (filePath) => electron_1.ipcRenderer.invoke("read-file", filePath),
     runCommand: (cmd, cwd) => electron_1.ipcRenderer.invoke("run-command", cmd, cwd),
     getHomeDir: () => electron_1.ipcRenderer.invoke("get-homedir"),
+    resolvePath: (cwd, segment) => electron_1.ipcRenderer.invoke("resolve-path", cwd, segment),
 });
 console.log("Preload is running");
 //# sourceMappingURL=preload.js.map

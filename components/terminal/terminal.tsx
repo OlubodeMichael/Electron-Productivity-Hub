@@ -2,17 +2,28 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
-type Line = { type: "command" | "output"; text: string }
+type Line =
+  | { type: "command"; text: string; cwd?: string }
+  | { type: "output"; text: string }
 
 const PROMPT = "→ "
 
+function displayCwd(cwd: string): string {
+  return cwd.replace(/^\/Users\/[^/]+/, "~")
+}
+
 export default function Terminal({ command, cwd }: { command: string; cwd: string }) {
   const [input, setInput] = useState(command)
+  const [currentCwd, setCurrentCwd] = useState(cwd)
   const [lines, setLines] = useState<Line[]>([
-    { type: "output", text: "> next dev\n▲ Next.js 15.x\n- Local: http://localhost:3000" },
+    { type: "output", text: "Desktop   Documents   Downloads   Projects   Library" },
   ])
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setCurrentCwd(cwd)
+  }, [cwd])
 
   const scrollToBottom = useCallback(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
@@ -29,12 +40,27 @@ export default function Terminal({ command, cwd }: { command: string; cwd: strin
         setLines([])
         return
       }
-      setLines((prev) => [...prev, { type: "command", text: trimmed }])
+      setLines((prev) => [...prev, { type: "command", text: trimmed, cwd: currentCwd }])
       if (!trimmed) return
+
+      const lower = trimmed.toLowerCase()
+      if (lower === "cd" || lower.startsWith("cd ")) {
+        const arg = trimmed.replace(/^cd\s*/i, "").trim()
+        if (typeof window !== "undefined" && window.api?.resolvePath) {
+          window.api
+            .resolvePath(currentCwd, arg)
+            .then((newPath) => setCurrentCwd(newPath))
+            .catch((err: Error | string) => {
+              const msg = typeof err === "string" ? err : err?.message ?? "No such file or directory"
+              setLines((prev) => [...prev, { type: "output", text: `cd: ${msg}` }])
+            })
+        }
+        return
+      }
 
       if (typeof window !== "undefined" && window.api?.runCommand) {
         window.api
-          .runCommand(trimmed, cwd)
+          .runCommand(trimmed, currentCwd)
           .then((output) => {
             setLines((prev) => [...prev, { type: "output", text: output.trim() || "" }])
           })
@@ -49,7 +75,7 @@ export default function Terminal({ command, cwd }: { command: string; cwd: strin
         ])
       }
     },
-    [cwd]
+    [currentCwd]
   )
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -87,7 +113,9 @@ export default function Terminal({ command, cwd }: { command: string; cwd: strin
               {line.type === "command" ? (
                 <p className="text-(--text-secondary)">
                   <span className="text-(--accent)">{PROMPT}</span>{" "}
-                  <span className="text-(--text-muted)">{cwd.replace(/^\/Users\/[^/]+/, "~")}</span>
+                  <span className="text-(--text-muted)">
+                    {displayCwd(line.cwd ?? currentCwd)}/
+                  </span>
                   <span className="text-foreground"> {line.text}</span>
                 </p>
               ) : (
@@ -99,7 +127,8 @@ export default function Terminal({ command, cwd }: { command: string; cwd: strin
           ))}
           <div className="flex flex-wrap items-center gap-0">
             <span className="text-(--accent)">{PROMPT}</span>
-            <span className="text-(--text-muted)">{cwd.replace(/^\/Users\/[^/]+/, "~")}</span>
+            <span className="text-(--text-muted)"> {displayCwd(currentCwd)} ~ % </span>
+            
             <input
               ref={inputRef}
               type="text"

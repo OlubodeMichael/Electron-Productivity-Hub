@@ -58,10 +58,10 @@ export default function Home() {
                 />
               ) : filePreview.mimeType === "application/pdf" ? (
                 <iframe
-                  title="PDF"
-                  src={`data:${filePreview.mimeType};base64,${filePreview.data}`}
-                  className="w-full flex-1 min-h-[600px] border-0 rounded"
-                />
+                    title="PDF"
+                    src={`data:${filePreview.mimeType};base64,${filePreview.data}`}
+                    className="w-full flex-1 min-h-[600px] border-0 rounded"
+                  />
               ) : (
                 <p className="text-(--text-muted)">
                   Preview not available for this file type.
