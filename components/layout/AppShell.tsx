@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Sidebar from "@/components/layout/Sidebar"
 import Terminal from "@/components/terminal/terminal"
 import { useApp } from "@/app/contexts/AppContext"
@@ -31,6 +31,13 @@ export default function AppShell({ children }: AppShellProps) {
   } = useApp()
   const [terminalHeight, setTerminalHeight] = useState(DEFAULT_TERMINAL_HEIGHT)
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH)
+  const [homeDir, setHomeDir] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.api?.getHomeDir) {
+      window.api.getHomeDir().then(setHomeDir)
+    }
+  }, [])
 
   const handleTerminalResizeStart = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -85,7 +92,7 @@ export default function AppShell({ children }: AppShellProps) {
                 >
                   <Terminal
                   command=""
-                  cwd={folder ?? "~"}
+                  cwd={folder ?? homeDir ?? "~"}
                 />
                 </div>
             </>

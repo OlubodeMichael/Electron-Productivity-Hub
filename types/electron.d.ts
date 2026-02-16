@@ -16,7 +16,7 @@ declare global {
         | { type: "binary"; mimeType: string; data: string }
       >
       runCommand: (cmd: string, cwd: string) => Promise<string>
-      
+      getHomeDir: () => Promise<string>
     }
   }
   interface TreeNode {

@@ -42,8 +42,8 @@ const createWindow = () => {
     const ses = electron_1.session.defaultSession;
     ses.webRequest.onHeadersReceived((details, callback) => {
         const csp = isDev
-            ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss: http://localhost:* https://localhost:*; font-src 'self'; base-uri 'self'"
-            : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'self'";
+            ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' data: blob:; connect-src 'self' ws: wss: http://localhost:* https://localhost:*; font-src 'self'; base-uri 'self'"
+            : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'self'";
         callback({
             responseHeaders: {
                 ...details.responseHeaders,
@@ -74,6 +74,7 @@ const createWindow = () => {
     electron_1.ipcMain.handle("get-folder-children", async (_, dirPath) => {
         return getDirectChildren(dirPath);
     });
+    electron_1.ipcMain.handle("get-homedir", () => os_1.default.homedir());
     electron_1.ipcMain.handle("run-command", async (_, cmd, cwd) => {
         const workDir = cwd === "~" ? os_1.default.homedir() : cwd;
         return new Promise((resolve, reject) => {

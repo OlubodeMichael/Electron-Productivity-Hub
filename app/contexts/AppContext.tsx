@@ -6,10 +6,32 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react"
+
+const FOLDER_STORAGE_KEY = "app-folder"
+const TREE_STORAGE_KEY = "app-tree"
+
+function getStoredFolder(): string | null {
+  if (typeof window === "undefined") return null
+  const s = localStorage.getItem(FOLDER_STORAGE_KEY)
+  return s || null
+}
+
+function getStoredTree(): TreeNode[] {
+  if (typeof window === "undefined") return []
+  try {
+    const s = localStorage.getItem(TREE_STORAGE_KEY)
+    if (!s) return []
+    const parsed = JSON.parse(s) as TreeNode[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 
 type FilePreview =
   | { type: "text"; content: string }
@@ -44,13 +66,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [terminalOpen, setTerminalOpen] = useState(false)
 
+  useEffect(() => {
+    setFolder(getStoredFolder())
+    setTree(getStoredTree())
+  }, [])
+
   const handleOpenFolder = useCallback(async (defaultPath?: string | null) => {
     const data = await window.api.openFolder(defaultPath ?? undefined)
     if (!data) return
-    setFolder(data.folderPath ?? null)
-    setTree(Array.isArray(data.tree) ? data.tree : [])
+    const folderPath = data.folderPath ?? null
+    const nextTree = Array.isArray(data.tree) ? data.tree : []
+    setFolder(folderPath)
+    setTree(nextTree)
     setFilePreview(null)
     setSelectedPath(null)
+    if (typeof window !== "undefined") {
+      localStorage.setItem(FOLDER_STORAGE_KEY, folderPath ?? "")
+      localStorage.setItem(TREE_STORAGE_KEY, JSON.stringify(nextTree))
+    }
   }, [])
 
   const handleReadFile = useCallback(async (filePath: string) => {

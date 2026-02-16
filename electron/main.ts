@@ -51,8 +51,8 @@ const createWindow = () => {
   const ses = session.defaultSession
   ses.webRequest.onHeadersReceived((details, callback) => {
     const csp = isDev
-      ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss: http://localhost:* https://localhost:*; font-src 'self'; base-uri 'self'"
-      : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'self'"
+      ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; frame-src 'self' data: blob:; connect-src 'self' ws: wss: http://localhost:* https://localhost:*; font-src 'self'; base-uri 'self'"
+      : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; frame-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'self'"
     callback({
       responseHeaders: {
         ...details.responseHeaders,
@@ -86,6 +86,8 @@ const createWindow = () => {
     return getDirectChildren(dirPath)
   })
 
+  ipcMain.handle("get-homedir", () => os.homedir())
+
   ipcMain.handle("run-command", async (_, cmd: string, cwd: string) => {
     const workDir = cwd === "~" ? os.homedir() : cwd
     return new Promise((resolve, reject) => {
@@ -115,6 +117,12 @@ const createWindow = () => {
     svg: "image/svg+xml",
     tiff: "image/tiff",
     tif: "image/tiff",
+    // video
+    mp4: "video/mp4",
+    webm: "video/webm",
+    ogg: "video/ogg",
+    mov: "video/quicktime",
+    m4v: "video/x-m4v",
   }
   const MAX_BINARY_SIZE = 50 * 1024 * 1024 // 50MB
 

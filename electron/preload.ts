@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld("api", {
   getFolderChildren: (dirPath: string) => ipcRenderer.invoke("get-folder-children", dirPath),
   readFile: (filePath: string) => ipcRenderer.invoke("read-file", filePath),
   runCommand: (cmd: string, cwd: string) => ipcRenderer.invoke("run-command", cmd, cwd),
+  getHomeDir: () => ipcRenderer.invoke("get-homedir"),
 })
 console.log("Preload is running")

@@ -6,6 +6,7 @@ electron_1.contextBridge.exposeInMainWorld("api", {
     getFolderChildren: (dirPath) => electron_1.ipcRenderer.invoke("get-folder-children", dirPath),
     readFile: (filePath) => electron_1.ipcRenderer.invoke("read-file", filePath),
     runCommand: (cmd, cwd) => electron_1.ipcRenderer.invoke("run-command", cmd, cwd),
+    getHomeDir: () => electron_1.ipcRenderer.invoke("get-homedir"),
 });
 console.log("Preload is running");
 //# sourceMappingURL=preload.js.map
