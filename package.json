@@ -4,13 +4,16 @@
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "concurrently \"next dev\" \"ELECTRON_DEV=1 electron .\"",
+    "dev": "concurrently \"next dev\" \"ELECTRON_DEV=1 ELECTRON_DISABLE_SECURITY_WARNINGS=1 NODE_OPTIONS='--no-deprecation' electron .\"",
     "build": "next build && next export",
     "start": "electron .",
+    "electron": "electron dist-electron/main.js",
     "build:electron": "tsc -p electron",
     "lint": "eslint"
   },
   "dependencies": {
+    "lucide-react": "^0.563.0",
+    "mammoth": "^1.11.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"

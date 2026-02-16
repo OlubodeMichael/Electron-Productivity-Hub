@@ -1,7 +1,33 @@
-import { app, BrowserWindow } from "electron"
+import { app, BrowserWindow, ipcMain, dialog, session } from "electron"
 import fs from "fs"
 import http from "http"
+import os from "os"
 import path from "path"
+import mammoth from "mammoth"
+import { exec } from "child_process"
+
+interface TreeNode {
+  name: string
+  path: string
+  type: "folder" | "file"
+  children?: TreeNode[]
+}
+
+const SKIP_DIRS = new Set(["node_modules", ".git", ".next", "__pycache__", ".venv", "venv"])
+
+function getDirectChildren(dirPath: string): TreeNode[] {
+  const items = fs.readdirSync(dirPath)
+  return items
+    .filter((item) => !SKIP_DIRS.has(item))
+    .map((item) => {
+      const fullPath = path.join(dirPath, item)
+      const stats = fs.lstatSync(fullPath)
+      if (stats.isDirectory()) {
+        return { name: item, path: fullPath, type: "folder" as const }
+      }
+      return { name: item, path: fullPath, type: "file" as const }
+    })
+}
 
 let mainWindow: BrowserWindow | null = null
 
@@ -19,16 +45,108 @@ const waitForDevServer = (): Promise<void> => {
 }
 
 const createWindow = () => {
+  const isDev = process.env.ELECTRON_DEV === "1" || process.env.NODE_ENV === "development"
+
+  // Content-Security-Policy: strict in production, allow HMR in dev
+  const ses = session.defaultSession
+  ses.webRequest.onHeadersReceived((details, callback) => {
+    const csp = isDev
+      ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss: http://localhost:* https://localhost:*; font-src 'self'; base-uri 'self'"
+      : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'self'"
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [csp],
+      },
+    })
+  })
+
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1400,
+    height: 1000,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, "preload.js"),
     },
   })
 
-  const isDev = process.env.ELECTRON_DEV === "1" || process.env.NODE_ENV === "development"
+  ipcMain.handle("open-folder", async (_, defaultPath?: string) => {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      defaultPath: defaultPath || undefined,
+      properties: ["openDirectory"],
+    })
+    if (result.canceled) return null
+    const folderPath = result.filePaths[0]
+    const tree = getDirectChildren(folderPath)
+    return { folderPath, tree }
+  })
+
+  ipcMain.handle("get-folder-children", async (_, dirPath: string) => {
+    return getDirectChildren(dirPath)
+  })
+
+  ipcMain.handle("run-command", async (_, cmd: string, cwd: string) => {
+    const workDir = cwd === "~" ? os.homedir() : cwd
+    return new Promise((resolve, reject) => {
+      exec(
+        cmd,
+        { cwd: workDir },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(stderr || error.message)
+            return
+          }
+          resolve(stdout)
+        }
+      )
+    })
+  })
+
+  const BINARY_EXTENSIONS: Record<string, string> = {
+    pdf: "application/pdf",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    bmp: "image/bmp",
+    ico: "image/x-icon",
+    svg: "image/svg+xml",
+    tiff: "image/tiff",
+    tif: "image/tiff",
+  }
+  const MAX_BINARY_SIZE = 50 * 1024 * 1024 // 50MB
+
+  const DOCX_EXTENSIONS = new Set(["docx", "doc"])
+
+  ipcMain.handle("read-file", async (_, filePath: string) => {
+    const ext = path.extname(filePath).toLowerCase().slice(1)
+    if (DOCX_EXTENSIONS.has(ext)) {
+      const stats = fs.statSync(filePath)
+      if (stats.size > MAX_BINARY_SIZE) {
+        throw new Error("File too large to display")
+      }
+      const buffer = fs.readFileSync(filePath)
+      const result = await mammoth.extractRawText({ buffer })
+      return { type: "text" as const, content: result.value }
+    }
+    const mimeType = BINARY_EXTENSIONS[ext]
+    if (mimeType) {
+      const stats = fs.statSync(filePath)
+      if (stats.size > MAX_BINARY_SIZE) {
+        throw new Error("File too large to display")
+      }
+      const buffer = fs.readFileSync(filePath)
+      return { type: "binary" as const, mimeType, data: buffer.toString("base64") }
+    }
+    return {
+      type: "text" as const,
+      content: fs.readFileSync(filePath, "utf8"),
+    }
+  })
+  
+
   const outPath = path.join(__dirname, "../out/index.html")
   const hasBuiltApp = fs.existsSync(outPath)
 
