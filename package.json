@@ -4,13 +4,18 @@
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "concurrently \"next dev\" \"ELECTRON_DEV=1 ELECTRON_DISABLE_SECURITY_WARNINGS=1 NODE_OPTIONS='--no-deprecation' electron .\"",
-    "build": "next build && next export",
-    "start": "electron .",
-    "electron": "electron dist-electron/main.js",
-    "build:electron": "tsc -p electron",
-    "lint": "eslint"
-  },
+  "dev": "concurrently \"next dev\" \"ELECTRON_DEV=1 ELECTRON_DISABLE_SECURITY_WARNINGS=1 NODE_OPTIONS='--no-deprecation' electron .\"",
+  "build:next": "next build",
+  "build:electron": "tsc -p electron",
+  "build": "npm run build:next && npm run build:electron",
+  "start": "electron .",
+  "dist": "npm run build && electron-builder",
+  "electron": "electron dist-electron/main.js",
+  "lint": "eslint",
+  "video": "remotion studio",
+  "video:render": "remotion render DevProductivityHubDemo out/demo.mp4"
+}
+,
   "dependencies": {
     "@remotion/cli": "4.0.422",
     "lucide-react": "^0.563.0",
@@ -28,9 +33,32 @@
     "@types/react-dom": "^19",
     "concurrently": "^9.2.1",
     "electron": "^40.4.0",
+    "electron-builder": "^26.7.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5.9.3"
+  },
+  "build": {
+  "appId": "com.michael.devproductivityhub",
+  "productName": "Dev Productivity Hub",
+  "files": [
+    "dist-electron/**/*",
+    "out/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "directories": {
+    "buildResources": "build"
+  },
+  "mac": {
+    "target": "dmg",
+    "icon": "build/icon.icns"
+  },
+  "win": {
+    "target": "nsis",
+    "icon": "build/icon.ico"
   }
+}
+
 }

@@ -1,10 +1,23 @@
-import { app, BrowserWindow, ipcMain, dialog, session } from "electron"
+import { app, BrowserWindow, ipcMain, dialog, session, protocol } from "electron"
 import fs from "fs"
 import http from "http"
 import os from "os"
 import path from "path"
 import mammoth from "mammoth"
 import { exec } from "child_process"
+
+// Custom protocol so the app runs with a real origin (app://local) and scripts work.
+// Must run before app.ready().
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "app",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+    },
+  },
+])
 
 interface TreeNode {
   name: string
@@ -50,9 +63,11 @@ const createWindow = () => {
   // Content-Security-Policy: strict in production, allow HMR in dev
   const ses = session.defaultSession
   ses.webRequest.onHeadersReceived((details, callback) => {
-    const csp = isDev
-      ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; frame-src 'self' data: blob:; connect-src 'self' ws: wss: http://localhost:* https://localhost:*; font-src 'self'; base-uri 'self'"
-      : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; frame-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'self'"
+    const isAppProtocol = details.url.startsWith("app://")
+    const csp =
+      isDev || isAppProtocol
+        ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; frame-src 'self' data: blob:; connect-src 'self' ws: wss: http://localhost:* https://localhost:*; font-src 'self'; base-uri 'self'"
+        : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; frame-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'self'"
     callback({
       responseHeaders: {
         ...details.responseHeaders,
@@ -174,8 +189,9 @@ const createWindow = () => {
   })
   
 
-  const outPath = path.join(__dirname, "../out/index.html")
-  const hasBuiltApp = fs.existsSync(outPath)
+  const outDir = path.join(__dirname, "../out")
+  const outIndexPath = path.join(outDir, "index.html")
+  const hasBuiltApp = fs.existsSync(outIndexPath)
 
   if (isDev || !hasBuiltApp) {
     // Dev mode or no build yet: load Next dev server
@@ -183,7 +199,49 @@ const createWindow = () => {
       mainWindow?.loadURL(DEV_URL)
     })
   } else {
-    mainWindow.loadFile(outPath)
+    // Serve static export via app:// so scripts run and app is interactive
+    protocol.handle("app", (request) => {
+      const reqUrl = new URL(request.url)
+      if (reqUrl.host !== "local") {
+        return new Response("Forbidden", { status: 403 })
+      }
+      let seg = reqUrl.pathname.replace(/^\//, "").trim() || "index.html"
+      // Route paths to HTML files (Next static export)
+      if (!path.extname(seg)) {
+        if (seg === "index" || seg === "") seg = "index.html"
+        else if (fs.existsSync(path.join(outDir, `${seg}.html`))) seg = `${seg}.html`
+        else seg = "index.html"
+      }
+      const filePath = path.resolve(outDir, seg)
+      const outDirResolved = path.resolve(outDir)
+      if (!filePath.startsWith(outDirResolved + path.sep) && filePath !== outDirResolved) {
+        return new Response("Forbidden", { status: 403 })
+      }
+      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+        return new Response("Not Found", { status: 404 })
+      }
+      const data = fs.readFileSync(filePath)
+      const ext = path.extname(filePath).toLowerCase()
+      const mime: Record<string, string> = {
+        ".html": "text/html",
+        ".js": "application/javascript",
+        ".css": "text/css",
+        ".json": "application/json",
+        ".woff2": "font/woff2",
+        ".woff": "font/woff",
+        ".ico": "image/x-icon",
+      }
+      const headers: Record<string, string> = {
+        "Content-Type": mime[ext] ?? "application/octet-stream",
+      }
+      if (ext === ".html") {
+        // Next.js static export uses inline scripts for hydration; allow them (we serve our own HTML).
+        headers["Content-Security-Policy"] =
+          "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-src 'self' data: blob:; connect-src 'self'; font-src 'self'; base-uri 'self'"
+      }
+      return new Response(data, { headers })
+    })
+    mainWindow.loadURL("app://local/")
   }
 }
 
